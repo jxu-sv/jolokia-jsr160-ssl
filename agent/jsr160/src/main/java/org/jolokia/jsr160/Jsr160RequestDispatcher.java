@@ -21,7 +21,10 @@ import java.util.*;
 
 import javax.management.*;
 import javax.management.remote.*;
+import javax.management.remote.rmi.RMIConnectorServer;
 import javax.naming.Context;
+import javax.rmi.ssl.SslRMIClientSocketFactory;
+import javax.rmi.ssl.SslRMIServerSocketFactory;
 
 import org.jolokia.backend.executor.MBeanServerExecutor;
 import org.jolokia.backend.RequestDispatcher;
@@ -123,6 +126,13 @@ public class Jsr160RequestDispatcher implements RequestDispatcher {
             ret.put(Context.SECURITY_PRINCIPAL, user);
             ret.put(Context.SECURITY_CREDENTIALS, password);
             ret.put("jmx.remote.credentials",new String[] { user, password });
+        }
+        
+        if (!System.getProperty("javax.net.ssl.trustStore", "NULL").equals("NULL")) {
+            SslRMIClientSocketFactory csf = new SslRMIClientSocketFactory();
+            SslRMIServerSocketFactory ssf = new SslRMIServerSocketFactory();
+            ret.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, csf);
+            ret.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, ssf);
         }
         return ret;
     }
