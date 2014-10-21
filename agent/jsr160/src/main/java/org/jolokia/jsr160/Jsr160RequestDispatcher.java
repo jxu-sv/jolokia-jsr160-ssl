@@ -16,15 +16,17 @@ package org.jolokia.jsr160;
  * limitations under the License.
  */
 
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.security.KeyStore;
 import java.util.*;
 
 import javax.management.*;
 import javax.management.remote.*;
-import javax.management.remote.rmi.RMIConnectorServer;
 import javax.naming.Context;
-import javax.rmi.ssl.SslRMIClientSocketFactory;
-import javax.rmi.ssl.SslRMIServerSocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManagerFactory;
 
 import org.jolokia.backend.executor.MBeanServerExecutor;
 import org.jolokia.backend.RequestDispatcher;
@@ -97,6 +99,7 @@ public class Jsr160RequestDispatcher implements RequestDispatcher {
         if (targetConfig == null) {
             throw new IllegalArgumentException("No proxy configuration in request " + pJmxReq);
         }
+       
         String urlS = targetConfig.getUrl();
         JMXServiceURL url = new JMXServiceURL(urlS);
         Map<String,Object> env = prepareEnv(targetConfig.getEnv());
@@ -127,15 +130,48 @@ public class Jsr160RequestDispatcher implements RequestDispatcher {
             ret.put(Context.SECURITY_CREDENTIALS, password);
             ret.put("jmx.remote.credentials",new String[] { user, password });
         }
-        
-        if (!System.getProperty("javax.net.ssl.trustStore", "NULL").equals("NULL")) {
-            SslRMIClientSocketFactory csf = new SslRMIClientSocketFactory();
-            SslRMIServerSocketFactory ssf = new SslRMIServerSocketFactory();
-            ret.put(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE, csf);
-            ret.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, ssf);
+
+        String trustStore = (String) ret.remove("trustStore");
+        String trustStorePassword  = (String) ret.remove("trustStorePassword");
+        if (trustStore == null) {
+        	trustStore = System.getProperty("javax.net.ssl.trustStore");
+        	trustStorePassword = System.getProperty("javax.net.ssl.trustStorePassword");
+        }
+       
+        if (trustStore != null) {
+        	SSLSocketFactory ssf = getSSLSocketFactory(trustStore, trustStorePassword);
+        	if (ssf != null) {
+                ret.put("jmx.remote.profiles", "TLS");
+        		ret.put("jmx.remote.tls.socket.factory", ssf);
+        		ret.put("jmx.remote.tls.enabled.protocols", "TLSv1"); 
+//        		ret.put("jmx.remote.tls.enabled.cipher.suites", "SSL_RSA_WITH_NULL_MD5");
+        	}
         }
         return ret;
     }
+    
+	private SSLSocketFactory getSSLSocketFactory(String trustStore, String trustStorePassword) {
+        SSLContext sslContext = null;
+		try {
+//			System.out.format("trust store - %s, trust store password - %s\n", trustStore, trustStorePassword);
+			
+			// truststore
+			
+			KeyStore ts = KeyStore.getInstance("JKS");
+			ts.load(new FileInputStream(trustStore), trustStorePassword.toCharArray());
+
+			// set up trust manager factory to use our trust store
+			TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+			tmf.init(ts);
+			
+			sslContext = SSLContext.getInstance("TLSv1");
+			sslContext.init(null, tmf.getTrustManagers(), null);
+			return sslContext.getSocketFactory();
+		} catch (Exception e) {
+			e.printStackTrace();
+			throw new IllegalArgumentException(e);
+		} 
+	}
 
     /**
      * The request can be handled when a target configuration is given.

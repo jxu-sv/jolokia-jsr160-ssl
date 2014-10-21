@@ -29,7 +29,7 @@ import org.json.simple.JSONObject;
  */
 public class ProxyTargetConfig {
     private String url;
-    private Map<String,String> env;
+    private Map<String,String> env = new HashMap<String, String>();
 
     /**
      * Map which should contain the following keys
@@ -37,6 +37,7 @@ public class ProxyTargetConfig {
      * <ul>
      *     <li><code>url</code> -- JSR-160 Url of the target (mandatory)</li>
      *     <li><code>user</code> and <code>password</code> -- user and password to use (optional)</li>
+     *     <li><code>trustStore</code> and <code>trustStorePassword</code> -- trust store and its password to use (optional)</li>
      * </ul>
      * @param pMap map containing configuration
      */
@@ -47,11 +48,19 @@ public class ProxyTargetConfig {
         }
         String user = pMap.get("user");
         if (user != null) {
-            env = new HashMap<String, String>();
             env.put("user",user);
             String pwd = pMap.get("password");
             if (pwd != null) {
                 env.put("password",pwd);
+            }
+        }
+        
+        String trustStore = pMap.get("trustStore");
+        if (trustStore != null) {
+            env.put("trustStore",trustStore);
+            String trustStorePassword = pMap.get("trustStorePassword");
+            if (trustStorePassword != null) {
+                env.put("trustStorePassword",trustStorePassword);
             }
         }
     }
